@@ -1,90 +1,104 @@
-# 电影数据分析平台
+# 基于Spark的电影数据分析与推荐系统
 
-基于 Hadoop 生态的电影大数据分析与机器学习平台，实现电影推荐、票房预测、投资成败分类和电影聚类等功能。
+## 项目简介
+
+本项目是《分布式系统应用设计》课程的大作业，基于Hadoop+Spark分布式架构，实现电影数据分析与推荐系统。系统整合TMDB电影元数据和MovieLens真实用户评分数据，构建了四个核心机器学习模型。
+
+## 团队成员
+
+| 姓名 | 角色 | 主要职责 |
+|------|------|---------|
+| 李伯犀 | 组长 | ALS推荐算法、系统后端开发、项目管理 |
+| 刘梓晗 | 成员 | 票房预测模型、数据预处理、Hive数据仓库 |
+| 贺鹏宇 | 成员 | 投资分类模型、集群环境搭建 |
+| 刘子正 | 成员 | K-Means聚类、前端可视化 |
 
 ## 技术栈
 
-- **计算框架**: Apache Spark (MLlib)
-- **数据仓库**: Apache Hive
-- **NoSQL 数据库**: Apache HBase
-- **分布式存储**: HDFS
-- **Web 框架**: Flask
+- **分布式存储**: Hadoop HDFS 3.3.6
+- **分布式计算**: Apache Spark 3.5.2
+- **数据仓库**: Apache Hive 3.1.2
+- **NoSQL数据库**: Apache HBase 2.4.17
+- **机器学习**: Spark MLlib
+- **Web框架**: Flask 3.1.2
 - **可视化**: ECharts
+
+## 系统功能
+
+### Model A: ALS协同过滤推荐
+- 基于用户喜好的电影实时推荐
+- RMSE: 0.8581
+
+### Model B: 票房预测
+- 随机森林回归预测电影票房
+- R²: 0.3126
+
+### Model C: 投资成败分类
+- 随机森林分类判断投资盈亏
+- 准确率: 80.75%
+
+### Model D: K-Means聚类
+- 电影智能分类（超级大片、热门商业片、口碑佳作等）
+- 轮廓系数: 0.4506
+
 
 ## 项目结构
 
 ```
-├── codes/
-│   ├── app.py          # Flask Web 应用（模型服务 + 可视化）
-│   ├── etl.py          # ETL 流程 + ALS推荐模型 + K-Means聚类
-│   └── train.py        # 票房预测模型 + 成败分类模型训练
-├── data/
-│   ├── preprocess.py   # 数据预处理 + HDFS上传 + Hive导入
-│   ├── tmdb_5000_movies.csv    # TMDB 电影原始数据
-│   └── tmdb_5000_credits.csv   # TMDB 演职员原始数据
+bigdata_project/
+├── codes/                        # 核心代码
+│   ├── app.py                    # Flask Web应用主程序
+│   ├── etl.py                    # ETL处理 + ALS + K-Means训练
+│   └── train.py                  # 随机森林模型训练
+├── data/                         # 数据文件
+│   ├── tmdb_5000_movies.csv      # TMDB电影元数据
+│   ├── tmdb_5000_credits.csv     # 演员导演数据
+│   ├── ratings.csv               # MovieLens评分数据
+│   ├── links.csv                 # ID映射表
+│   ├── preprocess.py             # 数据预处理脚本
+│   ├── clean_movies.txt          # 清洗后的电影数据
+│   └── real_ratings.txt          # 处理后的评分数据
+├── 参考文献/                      # 相关论文
+│   ├── als/
+│   ├── kmeans/
+│   └── 随机森林/
+├── 分布式系统应用设计_课程报告.md  # 完整课程报告
+└── README.md
 ```
 
-## 功能模块
+## 集群配置
 
-| 模型 | 算法 | 功能描述 |
-|------|------|----------|
-| Model A | ALS 协同过滤 | 基于用户行为的电影推荐 |
-| Model B | 随机森林回归 | 电影票房预测 |
-| Model C | 随机森林分类 | 电影投资成败预测 |
-| Model D | K-Means 聚类 | 电影类型自动分类 |
+| 节点 | 配置 | 角色 |
+|------|------|------|
+| Node01 | 4G/2core | NameNode, ResourceManager, Spark Master, HMaster |
+| Node02 | 2G/1core | DataNode, NodeManager, Spark Worker, HRegionServer |
+| Node03 | 2G/1core | DataNode, NodeManager, Spark Worker, HRegionServer |
 
-## 运行步骤
 
-### 1. 数据预处理
+## 数据集
 
-```bash
-cd data
-python preprocess.py
-```
+- **TMDB 5000 Movie Dataset**: 4,803部电影元数据
+- **MovieLens Dataset**: 100,004条真实用户评分
 
-该脚本会自动完成：
-- 清洗 TMDB 原始数据
-- 生成模拟用户评分数据
-- 上传数据到 HDFS
-- 创建 Hive 表并导入数据
+## 模型性能
 
-### 2. 模型训练
+| 模型 | 指标 | 数值 | 训练样本 | 耗时 |
+|------|------|------|---------|------|
+| ALS推荐 | RMSE | 0.8581 | 70,194 | 48s |
+| 票房预测 | R² | 0.3126 | 4,550 | 51s |
+| 投资分类 | Accuracy | 80.75% | 4,740 | 28s |
+| 电影聚类 | Silhouette | 0.4506 | 4,802 | 6s |
 
-```bash
-# ETL + ALS推荐 + K-Means聚类
-spark-submit --master yarn codes/etl.py
+## 界面预览
 
-# 票房预测 + 成败分类模型
-spark-submit --master yarn codes/train.py
-```
+系统提供Web可视化界面，包含：
+- 电影推荐功能
+- 票房预测功能
+- 投资分类功能
+- 聚类查询功能
+- 数据库浏览
+- ECharts可视化图表
 
-### 3. 启动 Web 服务
+## License
 
-```bash
-python codes/app.py
-```
-
-访问 `http://localhost:5000` 即可使用平台。
-
-## 数据流
-
-```
-TMDB CSV → preprocess.py → HDFS → Hive
-                                    ↓
-                              etl.py / train.py
-                                    ↓
-                            HBase + HDFS (模型)
-                                    ↓
-                                 app.py
-                                    ↓
-                               Web 界面
-```
-
-## 环境要求
-
-- Hadoop 集群 (HDFS + YARN)
-- Apache Spark 2.x+
-- Apache Hive
-- Apache HBase
-- Python 3.x
-- 依赖包: pyspark, happybase, flask, pandas, numpy
+本项目仅用于课程学习，数据集来源于Kaggle和GroupLens。
