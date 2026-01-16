@@ -4,11 +4,6 @@ import numpy as np
 import os
 import subprocess
 import sys
-
-print("=" * 80)
-print(" 一键式数据处理 + HDFS上传 + Hive导入")
-print("=" * 80)
-
 # ==========================================
 # 1. 读取原始数据
 # ==========================================
@@ -345,11 +340,6 @@ print(f"  • 评分表: movie_db.ratings")
 print("\n" + "=" * 80)
 print("全部完成！数据已成功导入 Hive")
 print("=" * 80)
-
-print("\n下一步:")
-print("  1. 运行: spark-submit --master yarn etl2.py")
-print("  2. 运行: spark-submit --master yarn train2.py")
-print("  3. 运行: python app2.py")
 
 # 清理临时文件
 print("\n清理临时文件...")
