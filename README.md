@@ -56,13 +56,8 @@ bigdata_project/
 │   ├── ratings.csv               # MovieLens评分数据
 │   ├── links.csv                 # ID映射表
 │   ├── preprocess.py             # 数据预处理脚本
-│   ├── clean_movies.txt          # 清洗后的电影数据
-│   └── real_ratings.txt          # 处理后的评分数据
-├── 参考文献/                      # 相关论文
-│   ├── als/
-│   ├── kmeans/
-│   └── 随机森林/
-├── 分布式系统应用设计_课程报告.md  # 完整课程报告
+│   ├── clean_movies.txt          # 清洗后的电影数据（也会上传到hdfs）
+│   └── real_ratings.txt          # 处理后的评分数据（也会上传到hdfs）
 └── README.md
 ```
 
