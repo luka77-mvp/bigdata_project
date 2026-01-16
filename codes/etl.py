@@ -16,7 +16,7 @@ spark = SparkSession.builder \
 spark.sparkContext.setLogLevel("ERROR")
 
 # --- 2. 连接 HBase ---
-print(">>> [系统] 正在连接 HBase...")
+print("正在连接 HBase...")
 connection = happybase.Connection('node01')
 connection.open()
 
@@ -35,7 +35,7 @@ metrics_table = connection.table('model_metrics')
 # ==========================================
 # 3. Model A: ALS 推荐模型 (优化版 + 性能记录)
 # ==========================================
-print("\n>>> [Model A] 正在优化训练 ALS 模型...")
+print("\nModel A正在优化训练 ALS 模型...")
 start_time_a = time.time()
 
 ratings = spark.sql("SELECT userId, movieId, rating FROM movie_db.ratings")
@@ -63,7 +63,7 @@ cv = CrossValidator(estimator=als,
                     evaluator=evaluator,
                     numFolds=3) 
 
-print(">>> [Model A] 正在进行 Grid Search (寻找最优参数)...")
+print("正在进行 Grid Search (寻找最优参数)...")
 model_cv = cv.fit(training)
 best_model_als = model_cv.bestModel
 
@@ -73,9 +73,9 @@ rmse = evaluator.evaluate(best_model_als.transform(test))
 
 training_time_a = time.time() - start_time_a
 
-print(f">>> [Model A] 最优参数: Rank={best_rank}, RegParam={best_reg}")
-print(f">>> [Model A] 测试集 RMSE: {rmse:.4f}")
-print(f">>> [Model A] 训练耗时: {training_time_a:.2f} 秒")
+print(f"最优参数: Rank={best_rank}, RegParam={best_reg}")
+print(f"测试集 RMSE: {rmse:.4f}")
+print(f"训练耗时: {training_time_a:.2f} 秒")
 
 # 保存性能指标到 HBase
 metrics_table.put(b'model_a', {
@@ -86,9 +86,9 @@ metrics_table.put(b'model_a', {
     b'metrics:train_samples': str(train_count_a).encode('utf-8'),
     b'metrics:training_time': f'{training_time_a:.2f}'.encode('utf-8')
 })
-print(">>> [Model A] 性能指标已保存到 HBase")
+print("性能指标已保存到 HBase")
 
-print(">>> [Model A] 保存推荐结果到 HBase...")
+print("保存推荐结果到 HBase...")
 user_recs = best_model_als.recommendForAllUsers(5)
 pdf_recs = user_recs.toPandas()
 
@@ -98,25 +98,25 @@ for index, row in pdf_recs.iterrows():
     recs_str = ",".join([f"{r['movieId']}:{r['rating']:.2f}" for r in row['recommendations']])
     batch.put(uid, {'recs:list': recs_str})
 batch.send()
-print(">>> [Model A] 完成！")
+print("完成！")
 
-print(">>> [Model A] 正在保存模型文件到 HDFS...")
+print("正在保存模型文件到 HDFS...")
 als_model_path = "hdfs:///bigdata_project/models/als_model"
 try:
     import subprocess
     subprocess.run(['hdfs', 'dfs', '-rm', '-r', '/bigdata_project/models/als_model'], 
                    stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
-    print(">>> [Model A] 已删除旧模型")
+    print("已删除旧模型")
 except:
     pass
 
 best_model_als.save(als_model_path)
-print(">>> [Model A] 模型文件已保存到 HDFS！")
+print("模型文件已保存到 HDFS！")
 
 # ==========================================
 # 4. 数据同步（基础信息）
 # ==========================================
-print("\n>>> [数据同步] 正在将电影元数据从 Hive 同步到 HBase...")
+print("\n正在将电影元数据从 Hive 同步到 HBase...")
 df_movies_basic = spark.sql("""
     SELECT id, title, genres, budget, revenue
     FROM movie_db.movies 
@@ -134,15 +134,14 @@ for index, row in pdf_movies_basic.iterrows():
         'info:revenue': str(row['revenue'])
     })
 batch.send()
-print(f">>> [数据同步] 完成！同步了 {len(pdf_movies_basic)} 条数据。")
+print(f"完成！同步了 {len(pdf_movies_basic)} 条数据。")
 
 # ==========================================
-# 5. Model D: K-Means (完整版 + 性能记录)
+# 5. Model D: K-Means
 # ==========================================
-print("\n>>> [Model D] 正在训练 K-Means 聚类模型...")
+print("\nModel D正在训练 K-Means 聚类模型...")
 start_time_d = time.time()
 
-# 1. 读取数据
 df_movies = spark.sql("""
     SELECT 
         id, 
@@ -159,8 +158,7 @@ df_movies = spark.sql("""
 train_count_d = df_movies.count()
 print(f"有效聚类数据量: {train_count_d} 条")
 
-# 2. 文本特征提取 (TF-IDF)
-print(">>> [Model D] 提取文本特征...")
+print("提取文本特征...")
 tokenizer = Tokenizer(inputCol="text", outputCol="words")
 wordsData = tokenizer.transform(df_movies)
 
@@ -171,8 +169,7 @@ idf = IDF(inputCol="rawFeatures", outputCol="text_features")
 idfModel = idf.fit(featurizedData)
 textData = idfModel.transform(featurizedData)
 
-# 3. 数值特征标准化（优化版：只使用数值特征，去掉文本特征）
-print(">>> [Model D] 标准化数值特征...")
+print(" 标准化数值特征...")
 assembler_numeric = VectorAssembler(
     inputCols=['budget', 'popularity', 'vote_average'],
     outputCol='numeric_features_raw',
@@ -180,27 +177,24 @@ assembler_numeric = VectorAssembler(
 )
 numericData = assembler_numeric.transform(textData)
 
-# 使用 StandardScaler 标准化（withMean=True 可以提高聚类效果）
 scaler = StandardScaler(inputCol="numeric_features_raw", outputCol="features", withMean=True, withStd=True)
 scalerModel = scaler.fit(numericData)
 finalData = scalerModel.transform(numericData)
 
-# 4. 评估与训练（优化版：增加迭代次数，使用更好的初始化方法）
-print(">>> [Model D] 评估当前配置 (K=5, 仅数值特征)...")
+print("评估当前配置 (K=5, 仅数值特征)...")
 kmeans = KMeans().setK(5).setSeed(42).setMaxIter(30).setInitMode("k-means||")
 model_km = kmeans.fit(finalData)
 predictions = model_km.transform(finalData)
 
-# 计算轮廓系数
 evaluator_clustering = ClusteringEvaluator()
 silhouette = evaluator_clustering.evaluate(predictions)
 
 training_time_d = time.time() - start_time_d
 
-print(f">>> [Model D] 轮廓系数 (Silhouette Score) = {silhouette:.4f}")
-print(f">>> [Model D] 训练耗时: {training_time_d:.2f} 秒")
+print(f"轮廓系数 (Silhouette Score) = {silhouette:.4f}")
+print(f"训练耗时: {training_time_d:.2f} 秒")
 
-# 保存性能指标到 HBase
+
 metrics_table.put(b'model_d', {
     b'metrics:name': 'K-Means 电影聚类'.encode('utf-8'),
     b'metrics:silhouette': f'{silhouette:.4f}'.encode('utf-8'),
@@ -208,10 +202,9 @@ metrics_table.put(b'model_d', {
     b'metrics:train_samples': str(train_count_d).encode('utf-8'),
     b'metrics:training_time': f'{training_time_d:.2f}'.encode('utf-8')
 })
-print(">>> [Model D] 性能指标已保存到 HBase")
+print("性能指标已保存到 HBase")
 
-# 6. 分析聚类并自动命名（优化版：基于预算分位数）
-print("\n>>> [Model D] 分析聚类特征并写入 HBase...")
+print("\n分析聚类特征并写入 HBase...")
 cluster_names = {}
 cluster_stats = []
 
@@ -231,19 +224,15 @@ for cluster_id in range(5):
             'vote': avg_vote
         })
 
-# 按预算排序
 cluster_stats.sort(key=lambda x: x['budget'], reverse=True)
 
-# 优化的命名规则：基于预算 + 热度 + 评分的综合判断（第四版：修正预算分级）
 for idx, stats in enumerate(cluster_stats):
     cluster_id = stats['id']
     count = stats['count']
     avg_budget = stats['budget']
     avg_popularity = stats['popularity']
     avg_vote = stats['vote']
-    
-    # 改进的命名逻辑：重新定义预算分级
-    
+  
     # 超高预算（1亿美元以上）
     if avg_budget > 100000000:
         if avg_popularity > 80:
@@ -318,8 +307,8 @@ for index, row in pdf_clusters.iterrows():
     })
 batch.send()
 
-print(f">>> [Model D] 完成！已保存 {len(pdf_clusters)} 部电影的聚类结果。")
-print(">>> [系统] 所有离线任务已完成。")
+print(f"完成！已保存 {len(pdf_clusters)} 部电影的聚类结果。")
+print("所有离线任务已完成。")
 
 connection.close()
 spark.stop()

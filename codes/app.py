@@ -14,15 +14,10 @@ import numpy as np
 from contextlib import contextmanager
 
 app = Flask(__name__)
-
-# ==========================================
-# HBase 连接管理器（消除冗余连接代码）
-# ==========================================
 HBASE_HOST = 'node01'
 
 @contextmanager
 def get_hbase_conn():
-    """HBase 连接上下文管理器，自动处理连接关闭"""
     conn = None
     try:
         conn = happybase.Connection(HBASE_HOST)
@@ -32,7 +27,6 @@ def get_hbase_conn():
         if conn: conn.close()
 
 def format_currency(value, default='$0'):
-    """格式化货币显示"""
     try:
         return "${:,.0f}".format(float(value))
     except:
@@ -42,20 +36,17 @@ app.secret_key = 'bigdata_project_secret_key_final'
 # ==========================================
 # 1. 系统初始化
 # ==========================================
-print(">>> [System] 正在启动 Spark 引擎 (Local Mode)...")
+print("正在启动 Spark 引擎 (Local Mode)...")
 spark = SparkSession.builder \
     .appName("Web_App_Final_Realtime_ALS") \
     .master("local[*]") \
     .config("spark.driver.memory", "2g") \
     .getOrCreate()
 spark.sparkContext.setLogLevel("ERROR")
-
-# 全局变量：存储 ALS 模型的电影特征向量 {movieId: [vector...]}
 MOVIE_FACTORS_DICT = {} 
 
-print(">>> [System] 正在加载离线模型...")
+print("正在加载离线模型...")
 try:
-    # 使用 HDFS 路径（分布式存储）
     # 1. 加载 Model B (票房预测)
     model_b_path = "hdfs:///bigdata_project/models/revenue_model"
     loaded_model_b = RandomForestRegressionModel.load(model_b_path)
@@ -65,7 +56,7 @@ try:
     loaded_model_c = RandomForestClassificationModel.load(model_c_path)
 
     # 3. 加载 Model A (ALS) 并提取特征向量
-    print(">>> [System] 正在加载 ALS 模型并提取特征向量...")
+    print("正在加载 ALS 模型并提取特征向量...")
     model_a_path = "hdfs:///bigdata_project/models/als_model"
     
     try:
@@ -73,14 +64,14 @@ try:
         item_factors_df = loaded_model_als.itemFactors.toPandas()
         for index, row in item_factors_df.iterrows():
             MOVIE_FACTORS_DICT[int(row['id'])] = np.array(row['features'])
-        print(f">>> [Success] ALS 向量加载成功！缓存了 {len(MOVIE_FACTORS_DICT)} 部电影特征。")
+        print(f"ALS 向量加载成功！缓存了 {len(MOVIE_FACTORS_DICT)} 部电影特征。")
     except Exception as e:
-        print(f">>> [Warning] 未找到 ALS 模型: {e}")
+        print(f"找到 ALS 模型: {e}")
 
-    print(">>> [Success] 所有模型从 HDFS 加载完成！")
+    print("所有模型从 HDFS 加载完成！")
 
 except Exception as e:
-    print(f">>> [Warning] 模型加载过程中出现错误: {e}")
+    print(f"模型加载过程中出现错误: {e}")
     loaded_model_b = None
     loaded_model_c = None
 
@@ -91,9 +82,8 @@ ALL_MOVIE_IDS = []
 GENRE_CACHE = {}
 
 def init_movie_index():
-    """构建全量索引并缓存题材信息"""
     global ALL_MOVIE_IDS, GENRE_CACHE
-    print(">>> [System] 正在连接 HBase 构建全量索引...")
+    print("正在连接 HBase 构建全量索引...")
     ids = []
     genres_dict = {}
     try:
@@ -108,12 +98,12 @@ def init_movie_index():
                 
                 ALL_MOVIE_IDS = sorted(ids, key=lambda x: int(x) if x.isdigit() else 0)
                 GENRE_CACHE = genres_dict
-                print(f">>> [Success] 索引构建完成！共发现 {len(ALL_MOVIE_IDS)} 部电影。")
-                print(f">>> [Success] 题材缓存完成！")
+                print(f"索引构建完成！共发现 {len(ALL_MOVIE_IDS)} 部电影。")
+                print(f"题材缓存完成！")
             else:
-                print(">>> [Warning] HBase 表 'movie_info' 不存在")
+                print("HBase 表 'movie_info' 不存在")
     except Exception as e:
-        print(f">>> [Error] 无法连接 HBase 或表不存在: {e}")
+        print(f"无法连接 HBase 或表不存在: {e}")
         ALL_MOVIE_IDS = []
         GENRE_CACHE = {}
 
@@ -141,10 +131,10 @@ def translate_genres(genre_str):
 
 
 # ==========================================
-# 4. 图表数据获取（4个图表版本）
+# 4. 图表数据获取
 # ==========================================
 def get_chart_data():
-    """获取4个图表的数据"""
+    """获取图表的数据"""
     genre_counts = {}
     scatter_data = []
     cluster_counts = {}
@@ -205,7 +195,6 @@ def get_chart_data():
     return pie_data, scatter_data, cluster_pie_data, budget_bar_data
 
 def get_model_metrics():
-    """从 HBase 读取模型性能指标"""
     metrics = []
     try:
         with get_hbase_conn() as conn:
@@ -258,7 +247,6 @@ def get_model_metrics():
 # 5. 数据库逻辑
 # ==========================================
 def get_cluster_badge(cluster_name):
-    """根据聚类名称返回对应的徽章颜色"""
     if "超级" in cluster_name or "高投资" in cluster_name: return "badge-red"
     if "商业" in cluster_name or "高成本" in cluster_name: return "badge-orange"
     if "数据缺失" in cluster_name or "小众低分" in cluster_name: return "badge-secondary"
@@ -340,13 +328,11 @@ def get_movies_by_page(page_num=1, page_size=20, genre_filter=None):
     if not ALL_MOVIE_IDS: init_movie_index()
     if not ALL_MOVIE_IDS: return [], 0
     
-    # 根据筛选条件确定 ID 列表
     if genre_filter and genre_filter != 'all':
         source_ids = [mid for mid in ALL_MOVIE_IDS if genre_filter in GENRE_CACHE.get(mid, '')]
     else:
         source_ids = ALL_MOVIE_IDS
-    
-    # 计算分页
+
     total_count = len(source_ids)
     total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
     page_num = max(1, min(page_num, total_pages))
@@ -362,10 +348,9 @@ def get_movies_by_page(page_num=1, page_size=20, genre_filter=None):
 
 
 # ==========================================
-# 6. 预测逻辑 (Model B & C)
+# 6. 预测逻辑 
 # ==========================================
 def _prepare_prediction_data(budget, pop, runtime):
-    """准备预测所需的特征数据（消除 Model B/C 的重复代码）"""
     b = float(budget); p = float(pop); r = float(runtime)
     safe_b = max(b, 1000.0); safe_p = max(p, 0.1)
     data = [(math.log(safe_b), math.log(safe_p), r)]
@@ -397,7 +382,7 @@ def predict_classify_real(budget, pop, runtime):
     except Exception as e: return f"Error: {e}"
 
 # ==========================================
-# 7. 实时推荐逻辑 (Model A - Realtime)
+# 7. 实时推荐逻辑
 # ==========================================
 def calculate_similarity(vec1, vec2):
     """计算两个向量的余弦相似度"""
@@ -409,9 +394,8 @@ def calculate_similarity(vec1, vec2):
     return dot_product / (norm_a * norm_b)
 
 def run_realtime_als(new_uid, liked_mids):
-    """真正的实时推荐：根据输入电影的向量，寻找相似向量"""
     if not MOVIE_FACTORS_DICT:
-        print(">>> [Warning] 向量字典为空，无法推荐。")
+        print("向量字典为空，无法推荐。")
         return [], 0
         
     start = time.time()
@@ -476,7 +460,7 @@ def run_realtime_als(new_uid, liked_mids):
 
 
 # ==========================================
-# 8. 前端界面 (HTML)
+# 8. 前端界面
 # ==========================================
 html_template = """
 <!DOCTYPE html>

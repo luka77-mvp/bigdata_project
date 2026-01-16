@@ -10,11 +10,10 @@ import time
 import subprocess
 
 def delete_hdfs_model(path):
-    """删除 HDFS 上的旧模型"""
     try:
         subprocess.run(['hdfs', 'dfs', '-rm', '-r', path], 
                        stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
-        print(f">>> 已删除旧模型: {path}")
+        print(f"已删除旧模型: {path}")
     except:
         pass
 
@@ -27,7 +26,7 @@ spark = SparkSession.builder \
 spark.sparkContext.setLogLevel("ERROR")
 
 # 连接 HBase
-print(">>> [系统] 正在连接 HBase...")
+print("正在连接 HBase...")
 connection = happybase.Connection('node01')
 connection.open()
 
@@ -37,17 +36,17 @@ if b'model_metrics' not in connection.tables():
 
 metrics_table = connection.table('model_metrics')
 
-# 使用 HDFS 路径（分布式存储）
+# 使用 HDFS 路径
 base_path = "hdfs:///bigdata_project/models"
 
 print("=" * 80)
-print("🚀 开始执行模型优化训练任务 (Grid Search + Cross Validation)")
+print("开始执行模型优化训练任务 (Grid Search + Cross Validation)")
 print("=" * 80)
 
 # ==========================================
-# Model B: 票房预测模型（优化版 + 性能记录）
+# Model B: 票房预测模型
 # ==========================================
-print("\n>>> [Model B] 正在准备数据...")
+print("\n正在准备数据...")
 start_time_b = time.time()
 
 df_b = spark.sql("""
@@ -71,8 +70,8 @@ assembler_b = VectorAssembler(
 data_b = assembler_b.transform(df_b)
 train_b, test_b = data_b.randomSplit([0.8, 0.2], seed=42)
 
-# --- 核心优化部分 ---
-print(">>> [Model B] 配置超参数网格...")
+
+print("配置超参数网格...")
 rf_b = RandomForestRegressor(featuresCol='features', labelCol='log_revenue')
 
 param_grid_b = ParamGridBuilder() \
@@ -92,7 +91,7 @@ cv_b = CrossValidator(
     parallelism=2
 )
 
-print(">>> [Model B] 开始交叉验证训练 (这可能需要几分钟)...")
+print("开始交叉验证训练 (这可能需要几分钟)...")
 cv_model_b = cv_b.fit(train_b)
 best_model_b = cv_model_b.bestModel
 
@@ -102,16 +101,16 @@ best_depth_b = best_model_b.getOrDefault('maxDepth')
 # 计算测试集性能
 test_rmse_b = evaluator_b.evaluate(best_model_b.transform(test_b))
 
-# 计算 R² (决定系数)
+# 计算 R² 
 r2_evaluator = RegressionEvaluator(labelCol="log_revenue", predictionCol="prediction", metricName="r2")
 r2_b = r2_evaluator.evaluate(best_model_b.transform(test_b))
 
 training_time_b = time.time() - start_time_b
 
-print(f">>> [Model B] 最优参数: Trees={best_trees_b}, Depth={best_depth_b}")
-print(f">>> [Model B] 测试集 RMSE: {test_rmse_b:.4f}")
-print(f">>> [Model B] 测试集 R²: {r2_b:.4f}")
-print(f">>> [Model B] 训练耗时: {training_time_b:.2f} 秒")
+print(f"最优参数: Trees={best_trees_b}, Depth={best_depth_b}")
+print(f"测试集 RMSE: {test_rmse_b:.4f}")
+print(f"测试集 R²: {r2_b:.4f}")
+print(f"训练耗时: {training_time_b:.2f} 秒")
 
 # 保存性能指标到 HBase
 metrics_table.put(b'model_b', {
@@ -123,18 +122,18 @@ metrics_table.put(b'model_b', {
     b'metrics:train_samples': str(train_count_b).encode('utf-8'),
     b'metrics:training_time': f'{training_time_b:.2f}'.encode('utf-8')
 })
-print(">>> [Model B] 性能指标已保存到 HBase")
+print("性能指标已保存到 HBase")
 
 # 保存最优模型
 model_b_path = f"{base_path}/revenue_model"
 delete_hdfs_model(model_b_path)
 best_model_b.save(model_b_path)
-print(f">>> [Model B] 最优模型已保存到 {model_b_path}")
+print(f"最优模型已保存到 {model_b_path}")
 
 # ==========================================
-# Model C: 成败分类模型（优化版 + 性能记录）
+# Model C: 成败分类模型
 # ==========================================
-print("\n>>> [Model C] 正在准备数据...")
+print("\n正在准备数据...")
 start_time_c = time.time()
 
 df_c = spark.sql("""
@@ -156,8 +155,7 @@ assembler_c = VectorAssembler(
 data_c = assembler_c.transform(df_c)
 train_c, test_c = data_c.randomSplit([0.8, 0.2], seed=42)
 
-# --- 核心优化部分 ---
-print(">>> [Model C] 配置超参数网格...")
+print("配置超参数网格...")
 rf_c = RandomForestClassifier(featuresCol='features', labelCol='label')
 
 param_grid_c = ParamGridBuilder() \
@@ -177,7 +175,7 @@ cv_c = CrossValidator(
     parallelism=2
 )
 
-print(">>> [Model C] 开始交叉验证训练...")
+print("开始交叉验证训练...")
 cv_model_c = cv_c.fit(train_c)
 best_model_c = cv_model_c.bestModel
 
@@ -195,10 +193,10 @@ f1_score = f1_evaluator.evaluate(best_model_c.transform(test_c))
 
 training_time_c = time.time() - start_time_c
 
-print(f">>> [Model C] 最优参数: Trees={best_trees_c}, Depth={best_depth_c}")
-print(f">>> [Model C] 验证集准确率: {accuracy:.4f}")
-print(f">>> [Model C] F1 分数: {f1_score:.4f}")
-print(f">>> [Model C] 训练耗时: {training_time_c:.2f} 秒")
+print(f"最优参数: Trees={best_trees_c}, Depth={best_depth_c}")
+print(f"验证集准确率: {accuracy:.4f}")
+print(f"F1 分数: {f1_score:.4f}")
+print(f"训练耗时: {training_time_c:.2f} 秒")
 
 # 保存性能指标到 HBase
 metrics_table.put(b'model_c', {
@@ -210,16 +208,16 @@ metrics_table.put(b'model_c', {
     b'metrics:train_samples': str(train_count_c).encode('utf-8'),
     b'metrics:training_time': f'{training_time_c:.2f}'.encode('utf-8')
 })
-print(">>> [Model C] 性能指标已保存到 HBase")
+print("性能指标已保存到 HBase")
 
 # 保存最优模型
 model_c_path = f"{base_path}/classify_model"
 delete_hdfs_model(model_c_path)
 best_model_c.save(model_c_path)
-print(f">>> [Model C] 最优模型已保存到 {model_c_path}")
+print(f"最优模型已保存到 {model_c_path}")
 
 print("\n" + "=" * 80)
-print("✅ 所有模型训练完成！")
+print("所有模型训练完成！")
 print("=" * 80)
 
 connection.close()

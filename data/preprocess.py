@@ -6,42 +6,42 @@ import subprocess
 import sys
 
 print("=" * 80)
-print("🚀 一键式数据处理 + HDFS上传 + Hive导入")
+print(" 一键式数据处理 + HDFS上传 + Hive导入")
 print("=" * 80)
 
 # ==========================================
 # 1. 读取原始数据
 # ==========================================
-print("\n>>> [步骤 1] 读取原始数据...")
+print("\n[步骤 1] 读取原始数据...")
 
 if not os.path.exists('tmdb_5000_movies.csv'):
-    print("❌ 错误：没找到 tmdb_5000_movies.csv，请检查路径！")
+    print("错误：没找到 tmdb_5000_movies.csv，请检查路径！")
     sys.exit(1)
 
 if not os.path.exists('tmdb_5000_credits.csv'):
-    print("❌ 错误：没找到 tmdb_5000_credits.csv，请检查路径！")
+    print("错误：没找到 tmdb_5000_credits.csv，请检查路径！")
     sys.exit(1)
 
 movies = pd.read_csv('tmdb_5000_movies.csv')
 credits = pd.read_csv('tmdb_5000_credits.csv')
 
-print(f"   ✅ 读取电影数据: {len(movies)} 部")
-print(f"   ✅ 读取演职员数据: {len(credits)} 条")
+print(f"   读取电影数据: {len(movies)} 部")
+print(f"   读取演职员数据: {len(credits)} 条")
 
 # ==========================================
-# 2. 合并数据（避免列名冲突）
+# 2. 合并数据
 # ==========================================
-print("\n>>> [步骤 2] 合并数据...")
+print("\n[步骤 2] 合并数据...")
 
 credits_renamed = credits[['movie_id', 'cast', 'crew']]
 movies = movies.merge(credits_renamed, left_on='id', right_on='movie_id', how='left')
 
-print(f"   ✅ 合并后数据量: {len(movies)} 部")
+print(f"   合并后数据量: {len(movies)} 部")
 
 # ==========================================
 # 3. 清洗 JSON 数据
 # ==========================================
-print("\n>>> [步骤 3] 解析 JSON 格式的复杂列...")
+print("\n[步骤 3] 解析 JSON 格式的复杂列...")
 
 def get_names(obj):
     """提取 JSON 数组中的 name 字段，用竖线分隔"""
@@ -54,7 +54,6 @@ def get_names(obj):
         return ""
 
 def get_director(obj):
-    """从 crew 中提取导演名字"""
     try:
         if pd.isna(obj):
             return ""
@@ -78,12 +77,12 @@ movies['cast_str'] = movies['cast'].apply(get_names)
 print("   正在解析 director...")
 movies['director'] = movies['crew'].apply(get_director)
 
-print("   ✅ JSON 解析完成")
+print("   JSON 解析完成")
 
 # ==========================================
 # 4. 数据清洗
 # ==========================================
-print("\n>>> [步骤 4] 数据清洗...")
+print("\n[步骤 4] 数据清洗...")
 
 # 处理日期
 print("   处理日期格式...")
@@ -102,7 +101,7 @@ movies['vote_average'] = movies['vote_average'].fillna(0)
 movies['vote_count'] = movies['vote_count'].fillna(0)
 movies['runtime'] = movies['runtime'].fillna(0)
 
-print(f"   ✅ 均值填补: revenue={mean_revenue:,.0f}, budget={mean_budget:,.0f}")
+print(f"   均值填补: revenue={mean_revenue:,.0f}, budget={mean_budget:,.0f}")
 
 # 清理文本
 print("   清理文本特殊字符...")
@@ -121,12 +120,12 @@ movies['genres_str'] = movies['genres_str'].replace('', '-')
 movies['keywords_str'] = movies['keywords_str'].replace('', '-')
 movies['director'] = movies['director'].replace('', 'Unknown')
 
-print("   ✅ 文本清理完成")
+print("   文本清理完成")
 
 # ==========================================
 # 5. 保存清洗后的电影数据
 # ==========================================
-print("\n>>> [步骤 5] 保存清洗后的电影数据...")
+print("\n[步骤 5] 保存清洗后的电影数据...")
 
 clean_cols = [
     'id', 'title', 'budget', 'revenue', 'popularity', 
@@ -144,13 +143,13 @@ movies_clean.columns = [
 output_file = 'clean_movies.txt'
 movies_clean.to_csv(output_file, index=False, sep='\t', header=False)
 
-print(f"   ✅ 已保存: {output_file}")
-print(f"   ✅ 数据量: {len(movies_clean)} 部电影")
+print(f"   已保存: {output_file}")
+print(f"   数据量: {len(movies_clean)} 部电影")
 
 # ==========================================
 # 6. 生成虚拟评分数据
 # ==========================================
-print("\n>>> [步骤 6] 生成虚拟评分数据...")
+print("\n[步骤 6] 生成虚拟评分数据...")
 
 n_users = 1000
 n_top_movies = 2000
@@ -179,13 +178,13 @@ ratings_df = pd.DataFrame(ratings_list, columns=['userId', 'movieId', 'rating'])
 ratings_file = 'fake_ratings.txt'
 ratings_df.to_csv(ratings_file, index=False, sep=',', header=False)
 
-print(f"   ✅ 已保存: {ratings_file}")
-print(f"   ✅ 评分数量: {len(ratings_df):,} 条")
+print(f"   已保存: {ratings_file}")
+print(f"   评分数量: {len(ratings_df):,} 条")
 
 # ==========================================
 # 7. 上传到 HDFS
 # ==========================================
-print("\n>>> [步骤 7] 上传文件到 HDFS...")
+print("\n[步骤 7] 上传文件到 HDFS...")
 
 hdfs_dir = "/bigdata_project/data"
 
@@ -206,35 +205,32 @@ print(f"   上传 {output_file} 到 HDFS...")
 result = subprocess.run(['hdfs', 'dfs', '-put', output_file, hdfs_dir], 
                        capture_output=True, text=True)
 if result.returncode == 0:
-    print(f"   ✅ {output_file} 上传成功")
+    print(f"   {output_file} 上传成功")
 else:
-    print(f"   ❌ {output_file} 上传失败: {result.stderr}")
+    print(f"   {output_file} 上传失败: {result.stderr}")
     sys.exit(1)
 
 print(f"   上传 {ratings_file} 到 HDFS...")
 result = subprocess.run(['hdfs', 'dfs', '-put', ratings_file, hdfs_dir], 
                        capture_output=True, text=True)
 if result.returncode == 0:
-    print(f"   ✅ {ratings_file} 上传成功")
+    print(f"   {ratings_file} 上传成功")
 else:
-    print(f"   ❌ {ratings_file} 上传失败: {result.stderr}")
+    print(f"   {ratings_file} 上传失败: {result.stderr}")
     sys.exit(1)
 
 # ==========================================
 # 8. 导入到 Hive
 # ==========================================
-print("\n>>> [步骤 8] 导入数据到 Hive...")
+print("\n[步骤 8] 导入数据到 Hive...")
 
 # 创建 Hive SQL 脚本
 hive_sql = """
--- 创建数据库（如果不存在）
 CREATE DATABASE IF NOT EXISTS movie_db;
 
--- 删除旧表（如果存在）
 DROP TABLE IF EXISTS movie_db.movies;
 DROP TABLE IF EXISTS movie_db.ratings;
 
--- 创建电影表
 CREATE TABLE movie_db.movies (
     id INT,
     title STRING,
@@ -253,11 +249,10 @@ ROW FORMAT DELIMITED
 FIELDS TERMINATED BY '\\t'
 STORED AS TEXTFILE;
 
--- 加载电影数据
 LOAD DATA INPATH '/bigdata_project/data/clean_movies.txt' 
 INTO TABLE movie_db.movies;
 
--- 创建评分表
+
 CREATE TABLE movie_db.ratings (
     userId INT,
     movieId INT,
@@ -267,7 +262,6 @@ ROW FORMAT DELIMITED
 FIELDS TERMINATED BY ','
 STORED AS TEXTFILE;
 
--- 加载评分数据
 LOAD DATA INPATH '/bigdata_project/data/fake_ratings.txt' 
 INTO TABLE movie_db.ratings;
 
@@ -280,29 +274,29 @@ sql_file = 'load_to_hive.sql'
 with open(sql_file, 'w') as f:
     f.write(hive_sql)
 
-print(f"   ✅ 已生成 Hive SQL 脚本: {sql_file}")
+print(f" 已生成 Hive SQL 脚本: {sql_file}")
 
 # 执行 Hive SQL
 print("   正在执行 Hive SQL...")
-print("   ⚠️  注意：会删除旧表并重新创建！")
+print("  注意：会删除旧表并重新创建！")
 
 result = subprocess.run(['hive', '-f', sql_file], 
                        capture_output=True, text=True)
 
 if result.returncode == 0:
-    print("   ✅ Hive 表创建和数据加载成功")
+    print(" Hive 表创建和数据加载成功")
     # 显示部分输出
     if "OK" in result.stdout:
-        print("   ✅ Hive 命令执行成功")
+        print("Hive 命令执行成功")
 else:
-    print(f"   ❌ Hive 执行失败")
-    print(f"   错误信息: {result.stderr}")
+    print(f" Hive 执行失败")
+    print(f" 错误信息: {result.stderr}")
     sys.exit(1)
 
 # ==========================================
 # 9. 验证数据
 # ==========================================
-print("\n>>> [步骤 9] 验证 Hive 表数据...")
+print("\n[步骤 9] 验证 Hive 表数据...")
 
 verify_sql = """
 SELECT COUNT(*) as movie_count FROM movie_db.movies;
@@ -317,16 +311,16 @@ result = subprocess.run(['hive', '-f', verify_file],
                        capture_output=True, text=True)
 
 if result.returncode == 0:
-    print("   ✅ 数据验证成功")
+    print("   数据验证成功")
     print(f"   输出:\n{result.stdout}")
 else:
-    print(f"   ⚠️  验证失败，但数据可能已经加载")
+    print(f"   验证失败，但数据可能已经加载")
 
 # ==========================================
 # 10. 数据统计
 # ==========================================
 print("\n" + "=" * 80)
-print("📊 数据统计")
+print("数据统计")
 print("=" * 80)
 
 print(f"\n电影数据:")
@@ -349,7 +343,7 @@ print(f"  • 电影表: movie_db.movies")
 print(f"  • 评分表: movie_db.ratings")
 
 print("\n" + "=" * 80)
-print("✅ 全部完成！数据已成功导入 Hive")
+print("全部完成！数据已成功导入 Hive")
 print("=" * 80)
 
 print("\n下一步:")
@@ -358,11 +352,11 @@ print("  2. 运行: spark-submit --master yarn train2.py")
 print("  3. 运行: python app2.py")
 
 # 清理临时文件
-print("\n>>> 清理临时文件...")
+print("\n清理临时文件...")
 try:
     os.remove(sql_file)
     os.remove(verify_file)
-    print("   ✅ 临时文件已清理")
+    print("   临时文件已清理")
 except:
     pass
 
