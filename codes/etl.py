@@ -33,7 +33,7 @@ movie_table = connection.table('movie_info')
 metrics_table = connection.table('model_metrics')
 
 # ==========================================
-# 3. Model A: ALS 推荐模型 (优化版 + 性能记录)
+# 3. Model A: ALS 推荐模型
 # ==========================================
 print("\nModel A正在优化训练 ALS 模型...")
 start_time_a = time.time()
@@ -114,7 +114,7 @@ best_model_als.save(als_model_path)
 print("模型文件已保存到 HDFS！")
 
 # ==========================================
-# 4. 数据同步（基础信息）
+# 4. 数据同步
 # ==========================================
 print("\n正在将电影元数据从 Hive 同步到 HBase...")
 df_movies_basic = spark.sql("""
@@ -258,7 +258,7 @@ for idx, stats in enumerate(cluster_stats):
         else:
             name = "中等制作"
     
-    # 中小预算（1000万-2500万）- 修正区间
+    # 中小预算（1000万-2500万）
     elif avg_budget > 10000000:
         if avg_popularity > 20 and avg_vote > 6.5:
             name = "热门中小片"  # 热度高且评分好
